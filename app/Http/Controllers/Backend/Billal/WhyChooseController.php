@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Models\WhyChoose;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
-use Illuminate\Support\Facades\Storage;
 use Yajra\DataTables\Facades\DataTables;
 
 class WhyChooseController extends Controller
@@ -18,19 +17,21 @@ class WhyChooseController extends Controller
 
             return DataTables::of($data)
                 ->addIndexColumn()
-                ->editColumn('image', function($row){
+                ->editColumn('image', function ($row) {
                     $imageUrl = $row->image ? asset($row->image) : 'https://via.placeholder.com/60x60?text=No+Image';
+
                     return '<img src="'.$imageUrl.'" class="square-img">';
                 })
-                ->addColumn('overlay_text', function($row){
+                ->addColumn('overlay_text', function ($row) {
                     return $row->overlay_text ?: '<span class="text-muted">No Text</span>';
                 })
-                ->addColumn('status', function($row){
+                ->addColumn('status', function ($row) {
                     $statusText = $row->status ? 'Active' : 'Deactive';
                     $statusClass = $row->status ? 'success' : 'danger';
+
                     return '<button class="btn btn-sm btn-'.$statusClass.' btn-toggle-status" data-id="'.$row->id.'">'.$statusText.'</button>';
                 })
-                ->addColumn('action', function($row){
+                ->addColumn('action', function ($row) {
                     $imageUrl = $row->image ? asset($row->image) : '';
 
                     $toggleIcon = $row->status
@@ -67,16 +68,18 @@ class WhyChooseController extends Controller
             'image' => 'required|image|mimes:jpg,jpeg,png,gif,webp',
         ]);
 
-        if($validator->fails()){
+        if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
-        $item = new WhyChoose();
+        $item = new WhyChoose;
         $item->overlay_text = $request->overlay_text;
 
-        if($request->hasFile('image')){
-            $path = $request->file('image')->store('whychoose', 'public');
-            $item->image = '/storage/'.$path;
+        if ($request->hasFile('image')) {
+            $file = $request->file('image');
+            $filename = time().'_'.$file->getClientOriginalName();
+            $file->move(public_path('whychoose'), $filename);
+            $item->image = 'whychoose/'.$filename;
         }
 
         $item->status = true;
@@ -84,7 +87,7 @@ class WhyChooseController extends Controller
 
         return response()->json([
             'message' => 'Entry created successfully',
-            'item' => $item
+            'item' => $item,
         ]);
     }
 
@@ -92,6 +95,7 @@ class WhyChooseController extends Controller
     {
         $item = WhyChoose::findOrFail($id);
         $item->image_url = $item->image ? asset($item->image) : null;
+
         return response()->json($item);
     }
 
@@ -102,28 +106,29 @@ class WhyChooseController extends Controller
             'image' => 'nullable|image|mimes:jpg,jpeg,png,gif,webp',
         ]);
 
-        if($validator->fails()){
+        if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
         $item = WhyChoose::findOrFail($id);
         $item->overlay_text = $request->overlay_text;
 
-        if($request->hasFile('image')){
-            if($item->image){
-                $oldPath = str_replace('/storage/', '', $item->image);
-                Storage::disk('public')->delete($oldPath);
+        if ($request->hasFile('image')) {
+            if ($item->image && file_exists(public_path($item->image))) {
+                unlink(public_path($item->image));
             }
 
-            $path = $request->file('image')->store('whychoose', 'public');
-            $item->image = '/storage/'.$path;
+            $file = $request->file('image');
+            $filename = time().'_'.$file->getClientOriginalName();
+            $file->move(public_path('whychoose'), $filename);
+            $item->image = 'whychoose/'.$filename;
         }
 
         $item->save();
 
         return response()->json([
             'message' => 'Entry updated successfully',
-            'item' => $item
+            'item' => $item,
         ]);
     }
 
@@ -131,29 +136,28 @@ class WhyChooseController extends Controller
     {
         $item = WhyChoose::findOrFail($id);
 
-        if($item->image){
-            $oldPath = str_replace('/storage/', '', $item->image);
-            Storage::disk('public')->delete($oldPath);
+        if ($item->image && file_exists(public_path($item->image))) {
+            unlink(public_path($item->image));
         }
 
         $item->delete();
 
         return response()->json([
             'message' => 'Entry deleted successfully',
-            'id' => $id
+            'id' => $id,
         ]);
     }
 
     public function toggleStatus($id)
     {
         $item = WhyChoose::findOrFail($id);
-        $item->status = !$item->status;
+        $item->status = ! $item->status;
         $item->save();
 
         return response()->json([
             'message' => 'Status updated successfully',
             'status' => $item->status,
-            'id' => $id
+            'id' => $id,
         ]);
     }
 }
